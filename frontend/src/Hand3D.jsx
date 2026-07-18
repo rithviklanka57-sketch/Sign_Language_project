@@ -2,279 +2,498 @@ import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
-// --- POSE CONSTANTS (Rotations in Radians) ---
-const EXTENDED = [0, 0, 0];
-const CURL_90 = [1.4, 0, 0];
-const CURL_60 = [0.8, 0, 0];
-const CURL_45 = [0.5, 0, 0];
-
-// --- A-Z FINGERSPELLING POSE LIBRARY ---
-// Each entry defines the target rotation [x, y, z] for each finger's joints.
-// Only X-rotation (curl) is used for simplicity; Y/Z used for spread/splay.
-const LETTER_POSES = {
-  a: { index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.5, 0.4, 0] },
-  b: { index: EXTENDED, middle: EXTENDED, ring: EXTENDED, pinky: EXTENDED, thumb: [0.2, 0.6, 0] },
-  c: { index: CURL_60, middle: CURL_60, ring: CURL_60, pinky: CURL_60, thumb: [0.4, 0.3, 0] },
-  d: { index: EXTENDED, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.7, 0.6, 0] },
-  e: { index: CURL_60, middle: CURL_60, ring: CURL_60, pinky: CURL_60, thumb: [0.8, 0.6, 0] },
-  f: { index: CURL_60, middle: EXTENDED, ring: EXTENDED, pinky: EXTENDED, thumb: [0.6, 0.4, 0] },
-  g: { index: [0, 0, 1.4], middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0, 0, -0.5] },
-  h: { index: EXTENDED, middle: EXTENDED, ring: CURL_90, pinky: CURL_90, thumb: [0.8, 0.6, 0] },
-  i: { index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: EXTENDED, thumb: [0.8, 0.6, 0] },
-  j: { index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: EXTENDED, thumb: [0.8, 0.6, 0] },
-  k: { index: EXTENDED, middle: CURL_45, ring: CURL_90, pinky: CURL_90, thumb: [0.2, 0, -0.2] },
-  l: { index: EXTENDED, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0, 0, -1.2] },
-  m: { index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.9, 0.5, 0] },
-  n: { index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.7, 0.4, 0] },
-  o: { index: CURL_60, middle: CURL_60, ring: CURL_60, pinky: CURL_60, thumb: [0.8, 0.8, 0] },
-  p: { index: EXTENDED, middle: CURL_45, ring: CURL_90, pinky: CURL_90, thumb: [0.2, 0, -0.2] },
-  q: { index: CURL_60, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.6, 0.4, 0] },
-  r: { index: [0, 0, 0.2], middle: [0, 0, -0.2], ring: CURL_90, pinky: CURL_90, thumb: [0.8, 0.6, 0] },
-  s: { index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.8, 0.8, 0] },
-  t: { index: [1.2, 0, 0], middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.5, 0.3, 0] },
-  u: { index: EXTENDED, middle: EXTENDED, ring: CURL_90, pinky: CURL_90, thumb: [0.8, 0.6, 0] },
-  v: { index: [0, 0, 0.3], middle: [0, 0, -0.3], ring: CURL_90, pinky: CURL_90, thumb: [0.8, 0.6, 0] },
-  w: { index: EXTENDED, middle: EXTENDED, ring: EXTENDED, pinky: CURL_90, thumb: [0.8, 0.6, 0] },
-  x: { index: CURL_60, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.8, 0.6, 0] },
-  y: { index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: EXTENDED, thumb: [0, 0, -1.2] },
-  z: { index: EXTENDED, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.8, 0.6, 0] },
+// ─── ASL POSE LIBRARY (per-joint, matched to standard ASL chart) ─────────────
+//
+// finger: [MCP_curl, PIP_curl, DIP_curl, MCP_spread_z]  (radians, X = curl in, Z = spread)
+// thumb:  [base_curl_x, tip_curl_x, base_z_rotation]
+//   base_z_rotation: -0.55 = natural resting; -1.4 = fully sideways (L/Y); +0.8 = across palm (B)
+//
+const POSES = {
+  // A – Tight fist, thumb rests alongside index
+  a: {
+    index:  [1.4, 1.5, 1.1, 0],
+    middle: [1.4, 1.5, 1.1, 0],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [1.4, 1.5, 1.1, 0],
+    thumb:  [0.4, 0.5, -0.1],   // alongside fist
+  },
+  // B – All fingers straight up, thumb folded across palm
+  b: {
+    index:  [0, 0, 0, 0],
+    middle: [0, 0, 0, 0],
+    ring:   [0, 0, 0, 0],
+    pinky:  [0, 0, 0, 0],
+    thumb:  [0.3, 0.2, 0.75],   // folded across palm
+  },
+  // C – Curved C shape, like gripping a ball
+  c: {
+    index:  [0.5, 0.8, 0.6, 0],
+    middle: [0.5, 0.8, 0.6, 0],
+    ring:   [0.5, 0.8, 0.6, 0],
+    pinky:  [0.5, 0.8, 0.6, 0],
+    thumb:  [0.3, 0.3, -0.45],  // curves to meet fingers
+  },
+  // D – Index up, others curl to touch thumb tip
+  d: {
+    index:  [0, 0, 0, 0],
+    middle: [1.4, 1.5, 1.1, 0],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [1.4, 1.5, 1.1, 0],
+    thumb:  [0.8, 0.7, -0.3],   // touches curled fingers
+  },
+  // E – All fingers hooked/clawed down, thumb tucked
+  e: {
+    index:  [0.4, 1.5, 1.5, 0],
+    middle: [0.4, 1.5, 1.5, 0],
+    ring:   [0.4, 1.5, 1.5, 0],
+    pinky:  [0.4, 1.5, 1.5, 0],
+    thumb:  [0.8, 0.4, 0.35],   // tucked under
+  },
+  // F – Index+thumb make OK, other three extended
+  f: {
+    index:  [0.8, 0.9, 0.5, 0],
+    middle: [0, 0, 0, 0],
+    ring:   [0, 0, 0, 0],
+    pinky:  [0, 0, 0, 0],
+    thumb:  [0.5, 0.5, -0.25],
+  },
+  // G – Index and thumb point sideways (gun shape)
+  g: {
+    index:  [0, 0, 0,  1.45],  // spread sideways
+    middle: [1.4, 1.5, 1.1, 0],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [1.4, 1.5, 1.1, 0],
+    thumb:  [0.1, 0.1, -0.55], // points sideways with index
+  },
+  // H – Index and middle extended sideways together
+  h: {
+    index:  [0, 0, 0, 1.3],
+    middle: [0, 0, 0, 1.3],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [1.4, 1.5, 1.1, 0],
+    thumb:  [0.7, 0.5, -0.2],
+  },
+  // I – Only pinky extended, others fisted
+  i: {
+    index:  [1.4, 1.5, 1.1, 0],
+    middle: [1.4, 1.5, 1.1, 0],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [0, 0, 0, 0],
+    thumb:  [0.7, 0.5, -0.2],
+  },
+  // J – Same static pose as I (J is a motion)
+  j: {
+    index:  [1.4, 1.5, 1.1, 0],
+    middle: [1.4, 1.5, 1.1, 0],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [0, 0, 0, 0],
+    thumb:  [0.7, 0.5, -0.2],
+  },
+  // K – Index up, middle angled forward, thumb between them
+  k: {
+    index:  [0, 0, 0, 0],
+    middle: [0.35, 0.5, 0.4, -0.25],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [1.4, 1.5, 1.1, 0],
+    thumb:  [0.25, 0.3, -0.45],
+  },
+  // L – Index up, thumb fully extended to the side (clear L shape)
+  l: {
+    index:  [0, 0, 0, 0],
+    middle: [1.4, 1.5, 1.1, 0],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [1.4, 1.5, 1.1, 0],
+    thumb:  [0.05, 0.1, -1.4],  // fully horizontal
+  },
+  // M – Three fingers folded over tucked thumb
+  m: {
+    index:  [1.4, 1.5, 1.1, 0],
+    middle: [1.4, 1.5, 1.1, 0],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [1.4, 1.5, 1.1, 0],
+    thumb:  [0.5, 0.3, 0.15],   // tucked under 3 fingers
+  },
+  // N – Two fingers folded over thumb
+  n: {
+    index:  [1.4, 1.5, 1.1, 0],
+    middle: [1.4, 1.5, 1.1, 0],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [1.4, 1.5, 1.1, 0],
+    thumb:  [0.5, 0.3, 0.0],    // tucked under 2 fingers
+  },
+  // O – All fingertips touching thumb forming O
+  o: {
+    index:  [0.65, 1.0, 0.9, 0],
+    middle: [0.65, 1.0, 0.9, 0],
+    ring:   [0.65, 1.0, 0.9, 0],
+    pinky:  [0.65, 1.0, 0.9, 0],
+    thumb:  [0.5, 0.6, -0.2],   // rounds to meet fingers
+  },
+  // P – Index + middle pointing forward/down (like K inverted)
+  p: {
+    index:  [0.3, 0.4, 0.3, -0.2],
+    middle: [0.4, 0.5, 0.4, -0.2],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [1.4, 1.5, 1.1, 0],
+    thumb:  [0.25, 0.3, -0.45],
+  },
+  // Q – Like G but pointing down
+  q: {
+    index:  [0.5, 0.6, 0.4, 1.2],
+    middle: [1.4, 1.5, 1.1, 0],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [1.4, 1.5, 1.1, 0],
+    thumb:  [0.3, 0.3, -0.4],
+  },
+  // R – Index and middle fingers crossed over each other
+  r: {
+    index:  [0, 0, 0,  0.25],
+    middle: [0, 0, 0, -0.38],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [1.4, 1.5, 1.1, 0],
+    thumb:  [0.7, 0.5, -0.2],
+  },
+  // S – Tight fist, thumb wrapped over top of fingers
+  s: {
+    index:  [1.4, 1.5, 1.2, 0],
+    middle: [1.4, 1.5, 1.2, 0],
+    ring:   [1.4, 1.5, 1.2, 0],
+    pinky:  [1.4, 1.5, 1.2, 0],
+    thumb:  [0.6, 0.4, 0.55],   // over the top of fingers
+  },
+  // T – Index partially bent, thumb sticks up between index and middle
+  t: {
+    index:  [1.2, 1.4, 0.8, 0],
+    middle: [1.4, 1.5, 1.1, 0],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [1.4, 1.5, 1.1, 0],
+    thumb:  [0.3, 0.2, -0.1],
+  },
+  // U – Index and middle straight up together (no spread)
+  u: {
+    index:  [0, 0, 0,  0.07],
+    middle: [0, 0, 0, -0.07],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [1.4, 1.5, 1.1, 0],
+    thumb:  [0.7, 0.5, -0.2],
+  },
+  // V – Peace sign: index and middle spread apart
+  v: {
+    index:  [0, 0, 0,  0.35],
+    middle: [0, 0, 0, -0.35],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [1.4, 1.5, 1.1, 0],
+    thumb:  [0.7, 0.5, -0.2],
+  },
+  // W – Three fingers spread (index, middle, ring)
+  w: {
+    index:  [0, 0, 0,  0.42],
+    middle: [0, 0, 0,  0.02],
+    ring:   [0, 0, 0, -0.42],
+    pinky:  [1.4, 1.5, 1.1, 0],
+    thumb:  [0.7, 0.5, -0.2],
+  },
+  // X – Index finger hooked like a crooked/bent hook
+  x: {
+    index:  [0.85, 1.4, 0.75, 0],
+    middle: [1.4, 1.5, 1.1, 0],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [1.4, 1.5, 1.1, 0],
+    thumb:  [0.7, 0.5, -0.2],
+  },
+  // Y – Thumb and pinky extended; index/middle/ring curled
+  y: {
+    index:  [1.4, 1.5, 1.1, 0],
+    middle: [1.4, 1.5, 1.1, 0],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [0, 0, 0, -0.3],   // pinky spread outward
+    thumb:  [0.1, 0.1, -1.4],  // fully sideways
+  },
+  // Z – Index points forward, traces Z (static = pointing)
+  z: {
+    index:  [0, 0, 0, 0],
+    middle: [1.4, 1.5, 1.1, 0],
+    ring:   [1.4, 1.5, 1.1, 0],
+    pinky:  [1.4, 1.5, 1.1, 0],
+    thumb:  [0.7, 0.5, -0.2],
+  },
 };
 
-// Default neutral hand pose
-const DEFAULT_POSE = {
-  index: EXTENDED, middle: EXTENDED, ring: EXTENDED, pinky: EXTENDED,
-  thumb: EXTENDED,
+// Neutral open hand (palm facing camera)
+const NEUTRAL = {
+  index:  [0.1, 0.1, 0.1, 0.05],
+  middle: [0.1, 0.1, 0.1, 0],
+  ring:   [0.1, 0.1, 0.1, -0.05],
+  pinky:  [0.1, 0.1, 0.1, -0.1],
+  thumb:  [0.2, 0.2, -0.55],
 };
+
+const FINGERS   = ['index', 'middle', 'ring', 'pinky'];
+const LERP_MS   = 380;
+const HOLD_MS   = 800;
+
+function poseToState(pose) {
+  const s = {};
+  FINGERS.forEach(f => {
+    const p = pose[f] || [0, 0, 0, 0];
+    s[f] = [
+      [p[0] || 0, 0, p[3] || 0],
+      [p[1] || 0, 0, 0],
+      [p[2] || 0, 0, 0],
+    ];
+  });
+  const tp = pose.thumb || [0, 0, -0.55];
+  s.thumb = [
+    [tp[0] || 0, 0, tp[2] || -0.55],
+    [tp[1] || 0, 0, 0],
+  ];
+  return s;
+}
+
+function lerpState(s, t, k) {
+  const r = {};
+  FINGERS.forEach(f => {
+    r[f] = s[f].map((sj, ji) => sj.map((sv, ax) => THREE.MathUtils.lerp(sv, t[f][ji][ax], k)));
+  });
+  r.thumb = s.thumb.map((sj, ji) => sj.map((sv, ax) => THREE.MathUtils.lerp(sv, t.thumb[ji][ax], k)));
+  return r;
+}
 
 export default function Hand3D({ currentLetter, isPlaying, onItemComplete }) {
-  const containerRef = useRef(null);
-  const lerpProgress = useRef(1); // Start at 1 = "already at target"
-  const lerpDuration = useRef(500);
+  const containerRef  = useRef(null);
+  const jointsRef     = useRef({});
+  const lerpRef       = useRef({ progress: 1 });
+  const holdTimerRef  = useRef(null);
+  const curRef        = useRef(poseToState(NEUTRAL));
+  const startRef      = useRef(poseToState(NEUTRAL));
+  const targetRef     = useRef(poseToState(NEUTRAL));
+  const onCompleteRef = useRef(onItemComplete);
+  const isPlayingRef  = useRef(isPlaying);
+  const sceneObjRef   = useRef(null);
 
-  const jointsRef = useRef({});
-  const startRotations = useRef({});
-  const targetRotations = useRef({});
-  const currentRotations = useRef({});
-  const onItemCompleteRef = useRef(onItemComplete);
+  useEffect(() => { onCompleteRef.current = onItemComplete; }, [onItemComplete]);
+  useEffect(() => { isPlayingRef.current  = isPlaying; },    [isPlaying]);
 
-  useEffect(() => {
-    onItemCompleteRef.current = onItemComplete;
-  }, [onItemComplete]);
+  function applyState(state) {
+    FINGERS.forEach(f => {
+      state[f]?.forEach((rot, ji) => {
+        const m = jointsRef.current[f]?.[ji];
+        if (m) { m.rotation.x = rot[0]; m.rotation.y = rot[1]; m.rotation.z = rot[2]; }
+      });
+    });
+    state.thumb?.forEach((rot, ji) => {
+      const m = jointsRef.current.thumb?.[ji];
+      if (m) { m.rotation.x = rot[0]; m.rotation.y = rot[1]; m.rotation.z = rot[2]; }
+    });
+  }
 
-  useEffect(() => {
-    if (!containerRef.current) return;
+  function initScene(el) {
+    const W = el.clientWidth;
+    const H = el.clientHeight;
 
-    const width = containerRef.current.clientWidth;
-    const height = containerRef.current.clientHeight;
-
-    // --- SCENE SETUP ---
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0f172a);
-    // Atmospheric fog
-    scene.fog = new THREE.FogExp2(0x0f172a, 0.08);
+    scene.background = new THREE.Color(0x111827);
+    scene.fog = new THREE.Fog(0x111827, 18, 30);
 
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(0, 1, 9);
+    const camera = new THREE.PerspectiveCamera(40, W / H, 0.1, 100);
+    camera.position.set(0, 0.8, 12);
+    camera.lookAt(0, 0.5, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(width, height);
+    renderer.setSize(W, H);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
-    containerRef.current.appendChild(renderer.domElement);
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    el.appendChild(renderer.domElement);
 
-    // --- LIGHTING ---
-    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-    const key = new THREE.DirectionalLight(0xffffff, 0.9);
-    key.position.set(5, 10, 7);
-    key.castShadow = true;
-    scene.add(key);
-    // Neon fill light
-    const fill = new THREE.DirectionalLight(0xa855f7, 0.6);
-    fill.position.set(-5, -5, -3);
-    scene.add(fill);
-    const back = new THREE.DirectionalLight(0x38bdf8, 0.3);
-    back.position.set(0, 5, -8);
-    scene.add(back);
+    // ── Lighting ──────────────────────────────────────────────────────────────
+    // Main key light (from upper-front left)
+    const keyLight = new THREE.DirectionalLight(0xfff4e0, 1.4);
+    keyLight.position.set(-3, 8, 10);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width  = 2048;
+    keyLight.shadow.mapSize.height = 2048;
+    scene.add(keyLight);
+    // Warm fill from right
+    const fillLight = new THREE.DirectionalLight(0xffe0b2, 0.6);
+    fillLight.position.set(5, 3, 6);
+    scene.add(fillLight);
+    // Cool rim from behind
+    const rimLight = new THREE.DirectionalLight(0xbfdbfe, 0.4);
+    rimLight.position.set(0, -2, -8);
+    scene.add(rimLight);
+    // Soft ambient
+    scene.add(new THREE.AmbientLight(0xffd7b5, 0.5));
 
-    // Subtle grid ground
-    const grid = new THREE.GridHelper(20, 30, 0x1e293b, 0x1e293b);
-    grid.position.y = -4;
-    scene.add(grid);
+    // Subtle floor shadow catcher
+    const floorGeo = new THREE.PlaneGeometry(20, 20);
+    const floorMat = new THREE.ShadowMaterial({ opacity: 0.25 });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -5;
+    floor.receiveShadow = true;
+    scene.add(floor);
 
-    // --- ORBIT CONTROLS ---
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.minDistance = 4;
-    controls.maxDistance = 16;
+    controls.dampingFactor = 0.08;
+    controls.minDistance   = 6;
+    controls.maxDistance   = 20;
     controls.target.set(0, 0.5, 0);
 
-    // --- MATERIALS ---
-    const palmMat = new THREE.MeshStandardMaterial({
-      color: 0x334155,
-      metalness: 0.7,
-      roughness: 0.3,
-    });
-    const boneMat = new THREE.MeshStandardMaterial({
-      color: 0x475569,
-      metalness: 0.8,
-      roughness: 0.2,
-    });
-    const jointMat = new THREE.MeshStandardMaterial({
-      color: 0xc084fc,
-      emissive: 0x9333ea,
-      emissiveIntensity: 1.0,
-      roughness: 0.3,
-    });
-    const fingertipMat = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      emissive: 0x0ea5e9,
-      emissiveIntensity: 0.8,
-      roughness: 0.3,
-    });
+    // ── Skin Materials ───────────────────────────────────────────────────────
+    const SKIN_BASE  = 0xE8A87C;  // warm peach/tan
+    const SKIN_DARK  = 0xD08B5B;  // knuckle crease / palm shadow
+    const SKIN_TIP   = 0xF2C49B;  // slightly lighter fingertip
+    const NAIL_COLOR = 0xF8D7C0;  // pale pink for nail flat
 
-    // --- BUILD HAND ---
-    const handGroup = new THREE.Group();
-    scene.add(handGroup);
+    const palmMat  = new THREE.MeshStandardMaterial({ color: SKIN_DARK, roughness: 0.85, metalness: 0.0 });
+    const boneMat  = new THREE.MeshStandardMaterial({ color: SKIN_BASE, roughness: 0.80, metalness: 0.0 });
+    const jointMat = new THREE.MeshStandardMaterial({ color: SKIN_DARK, roughness: 0.82, metalness: 0.0 });
+    const tipMat   = new THREE.MeshStandardMaterial({ color: SKIN_TIP,  roughness: 0.75, metalness: 0.0 });
 
-    // Palm
-    const palmGeo = new THREE.BoxGeometry(2.1, 2.4, 0.45);
+    const hand = new THREE.Group();
+    scene.add(hand);
+
+    // ── Palm ─────────────────────────────────────────────────────────────────
+    // Slightly rounded box for the palm
+    const palmGeo = new THREE.BoxGeometry(2.4, 2.8, 0.52, 2, 2, 2);
     const palm = new THREE.Mesh(palmGeo, palmMat);
-    palm.position.set(0, -0.6, 0);
+    palm.position.set(0, -0.7, 0);
     palm.castShadow = true;
-    handGroup.add(palm);
+    palm.receiveShadow = true;
+    hand.add(palm);
 
-    // Wrist cylinder
-    const wristGeo = new THREE.CylinderGeometry(0.28, 0.32, 0.6, 16);
-    const wrist = new THREE.Mesh(wristGeo, boneMat);
-    wrist.position.set(0, -1.9, 0);
-    handGroup.add(wrist);
+    // Knuckle ridge on top of palm
+    for (let i = 0; i < 4; i++) {
+      const kx = [-0.82, -0.28, 0.24, 0.72][i];
+      const knuckle = new THREE.Mesh(
+        new THREE.SphereGeometry(0.16, 10, 10),
+        jointMat
+      );
+      knuckle.position.set(kx, 0.72, 0.12);
+      knuckle.castShadow = true;
+      hand.add(knuckle);
+    }
 
-    // Helper: build a finger with 3 joints and 3 bone segments
-    const buildFinger = (name, xOffset, yStart, segLen, thickness) => {
+    // Wrist
+    const wristGeo = new THREE.CylinderGeometry(0.36, 0.42, 0.8, 18);
+    const wrist = new THREE.Mesh(wristGeo, palmMat);
+    wrist.position.set(0, -2.2, 0);
+    wrist.castShadow = true;
+    hand.add(wrist);
+
+    // ── Build a finger (3 joints, each with a bone cylinder child) ───────────
+    const buildFinger = (name, xOff, yStart, [s0, s1, s2], thick) => {
       const joints = [];
-      let parent = handGroup;
-      for (let j = 0; j < 3; j++) {
+      let parent  = hand;
+      const segs  = [s0, s1, s2];
+      const mats  = [jointMat, jointMat, tipMat];
+
+      segs.forEach((segLen, ji) => {
         // Joint sphere
-        const mat = j === 2 ? fingertipMat : jointMat;
-        const jGeo = new THREE.SphereGeometry(thickness * 1.25, 12, 12);
-        const jMesh = new THREE.Mesh(jGeo, mat);
-        jMesh.position.set(j === 0 ? xOffset : 0, j === 0 ? yStart : segLen, 0);
-        jMesh.castShadow = true;
-        parent.add(jMesh);
+        const jNode = new THREE.Mesh(
+          new THREE.SphereGeometry(thick * 1.28, 14, 14),
+          mats[ji]
+        );
+        jNode.position.set(ji === 0 ? xOff : 0, ji === 0 ? yStart : segs[ji - 1], 0);
+        jNode.castShadow = true;
+        parent.add(jNode);
 
-        // Bone segment
-        const bGeo = new THREE.CylinderGeometry(thickness * 0.7, thickness, segLen, 12);
-        const bMesh = new THREE.Mesh(bGeo, boneMat);
-        bMesh.position.set(0, segLen / 2, 0);
-        bMesh.castShadow = true;
-        jMesh.add(bMesh);
+        // Bone cylinder
+        const bone = new THREE.Mesh(
+          new THREE.CylinderGeometry(thick * 0.62, thick * 0.88, segLen, 14),
+          boneMat
+        );
+        bone.position.set(0, segLen / 2, 0);
+        bone.castShadow = true;
+        jNode.add(bone);
 
-        joints.push(jMesh);
-        parent = jMesh;
-      }
+        joints.push(jNode);
+        parent = jNode;
+      });
+
+      // Tiny nail on fingertip
+      const nailGeo = new THREE.BoxGeometry(thick * 1.5, thick * 0.6, 0.06);
+      const nail = new THREE.Mesh(nailGeo, new THREE.MeshStandardMaterial({ color: NAIL_COLOR, roughness: 0.4 }));
+      nail.position.set(0, segs[2] * 0.55, thick * 0.7);
+      joints[2].add(nail);
+
       jointsRef.current[name] = joints;
     };
 
-    buildFinger('pinky',  -0.78, 0.45, 0.38, 0.10);
-    buildFinger('ring',   -0.27, 0.56, 0.46, 0.12);
-    buildFinger('middle',  0.22, 0.60, 0.52, 0.12);
-    buildFinger('index',   0.70, 0.56, 0.46, 0.12);
+    // Finger layout: name, xOffset, yStart, [seg0, seg1, seg2], thickness
+    buildFinger('pinky',  -0.82, 0.72, [0.42, 0.34, 0.26], 0.105);
+    buildFinger('ring',   -0.28, 0.84, [0.52, 0.43, 0.33], 0.120);
+    buildFinger('middle',  0.24, 0.88, [0.58, 0.48, 0.37], 0.125);
+    buildFinger('index',   0.72, 0.82, [0.52, 0.43, 0.33], 0.118);
 
-    // Thumb (2 joints, angled)
-    const thumbJoints = [];
-    const tThick = 0.14;
-    const tSeg = 0.46;
-    const tBase = new THREE.Mesh(new THREE.SphereGeometry(tThick * 1.3, 12, 12), jointMat);
-    tBase.position.set(0.95, -0.22, 0.15);
-    tBase.rotation.z = -0.55;
+    // ── Thumb (2 joints) ─────────────────────────────────────────────────────
+    const tThick = 0.155;
+    const tSeg0  = 0.50;
+    const tSeg1  = 0.42;
+
+    const tBase = new THREE.Mesh(
+      new THREE.SphereGeometry(tThick * 1.35, 14, 14),
+      jointMat
+    );
+    tBase.position.set(1.10, -0.30, 0.14);
+    // NOTE: NO initial rotation — pose data handles everything
     tBase.castShadow = true;
-    handGroup.add(tBase);
-    const tb1 = new THREE.Mesh(new THREE.CylinderGeometry(tThick * 0.75, tThick, tSeg, 12), boneMat);
-    tb1.position.set(0, tSeg / 2, 0);
+    hand.add(tBase);
+
+    const tb1 = new THREE.Mesh(
+      new THREE.CylinderGeometry(tThick * 0.70, tThick, tSeg0, 14),
+      boneMat
+    );
+    tb1.position.set(0, tSeg0 / 2, 0);
     tBase.add(tb1);
-    thumbJoints.push(tBase);
 
-    const tTip = new THREE.Mesh(new THREE.SphereGeometry(tThick * 1.1, 12, 12), fingertipMat);
-    tTip.position.set(0, tSeg, 0);
+    const tTip = new THREE.Mesh(
+      new THREE.SphereGeometry(tThick * 1.15, 14, 14),
+      tipMat
+    );
+    tTip.position.set(0, tSeg0, 0);
     tBase.add(tTip);
-    const tb2 = new THREE.Mesh(new THREE.CylinderGeometry(tThick * 0.65, tThick * 0.9, tSeg, 12), boneMat);
-    tb2.position.set(0, tSeg / 2, 0);
+
+    const tb2 = new THREE.Mesh(
+      new THREE.CylinderGeometry(tThick * 0.58, tThick * 0.92, tSeg1, 14),
+      boneMat
+    );
+    tb2.position.set(0, tSeg1 / 2, 0);
     tTip.add(tb2);
-    thumbJoints.push(tTip);
 
-    jointsRef.current['thumb'] = thumbJoints;
+    // Thumbnail
+    const tNail = new THREE.Mesh(
+      new THREE.BoxGeometry(tThick * 1.5, tThick * 0.6, 0.06),
+      new THREE.MeshStandardMaterial({ color: NAIL_COLOR, roughness: 0.4 })
+    );
+    tNail.position.set(0, tSeg1 * 0.55, tThick * 0.75);
+    tTip.add(tNail);
 
-    // --- INIT ROTATIONS ---
-    const makeRotState = () => ({
-      index:  [[0,0,0],[0,0,0],[0,0,0]],
-      middle: [[0,0,0],[0,0,0],[0,0,0]],
-      ring:   [[0,0,0],[0,0,0],[0,0,0]],
-      pinky:  [[0,0,0],[0,0,0],[0,0,0]],
-      thumb:  [[0,0,0],[0,0,0]],
-    });
-    currentRotations.current = makeRotState();
-    startRotations.current   = makeRotState();
-    targetRotations.current  = makeRotState();
+    jointsRef.current['thumb'] = [tBase, tTip];
 
-    handGroup.rotation.y = -0.35;
-    handGroup.rotation.x =  0.15;
+    // Orient hand: palm facing camera, slight upward tilt
+    hand.rotation.y =  0.08;   // very slight angle to show thumb side
+    hand.rotation.x = -0.05;   // nearly straight-on
 
-    // --- ANIMATION LOOP ---
+    // Apply initial neutral pose
+    applyState(curRef.current);
+
+    // ── Render Loop ──────────────────────────────────────────────────────────
     let raf;
-    let lastTime = performance.now();
-
+    let last = performance.now();
     const animate = (now) => {
       raf = requestAnimationFrame(animate);
-      const delta = now - lastTime;
-      lastTime = now;
+      const dt = now - last; last = now;
 
-      if (lerpProgress.current < 1) {
-        lerpProgress.current = Math.min(lerpProgress.current + delta / lerpDuration.current, 1);
-        // Ease-in-out curve
-        const t = lerpProgress.current < 0.5
-          ? 2 * lerpProgress.current * lerpProgress.current
-          : 1 - Math.pow(-2 * lerpProgress.current + 2, 2) / 2;
-
-        const fingers = ['index', 'middle', 'ring', 'pinky'];
-        fingers.forEach(f => {
-          for (let j = 0; j < 3; j++) {
-            for (let ax = 0; ax < 3; ax++) {
-              currentRotations.current[f][j][ax] = THREE.MathUtils.lerp(
-                startRotations.current[f][j][ax],
-                targetRotations.current[f][j][ax],
-                t
-              );
-            }
-            const mesh = jointsRef.current[f]?.[j];
-            if (mesh) {
-              mesh.rotation.x = currentRotations.current[f][j][0];
-              mesh.rotation.y = currentRotations.current[f][j][1];
-              mesh.rotation.z = currentRotations.current[f][j][2];
-            }
-          }
-        });
-
-        // Thumb (2 joints)
-        for (let j = 0; j < 2; j++) {
-          for (let ax = 0; ax < 3; ax++) {
-            currentRotations.current.thumb[j][ax] = THREE.MathUtils.lerp(
-              startRotations.current.thumb[j][ax],
-              targetRotations.current.thumb[j][ax],
-              t
-            );
-          }
-          const mesh = jointsRef.current.thumb?.[j];
-          if (mesh) {
-            mesh.rotation.x = currentRotations.current.thumb[j][0];
-            mesh.rotation.y = currentRotations.current.thumb[j][1];
-            mesh.rotation.z = currentRotations.current.thumb[j][2];
-          }
-        }
-
-        if (lerpProgress.current >= 1) {
-          onItemCompleteRef.current?.();
-        }
+      if (lerpRef.current.progress < 1) {
+        lerpRef.current.progress = Math.min(lerpRef.current.progress + dt / LERP_MS, 1);
+        const p = lerpRef.current.progress;
+        // Smooth ease-in-out cubic
+        const t = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+        curRef.current = lerpState(startRef.current, targetRef.current, t);
+        applyState(curRef.current);
       }
 
       controls.update();
@@ -282,65 +501,81 @@ export default function Hand3D({ currentLetter, isPlaying, onItemComplete }) {
     };
     animate(performance.now());
 
-    const onResize = () => {
-      if (!containerRef.current) return;
-      const w = containerRef.current.clientWidth;
-      const h = containerRef.current.clientHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
+    return {
+      renderer,
+      camera,
+      controls,
+      cancelAnim: () => cancelAnimationFrame(raf),
     };
-    window.addEventListener('resize', onResize);
+  }
 
-    return () => {
-      window.removeEventListener('resize', onResize);
-      cancelAnimationFrame(raf);
-      if (containerRef.current && renderer.domElement.parentNode === containerRef.current) {
-        containerRef.current.removeChild(renderer.domElement);
-      }
-      renderer.dispose();
-    };
-  }, []);
-
-  // --- POSE TRIGGER ---
+  // ── Mount with ResizeObserver (deferred init for safe layout) ───────────────
   useEffect(() => {
-    const letter = currentLetter?.trim().toLowerCase();
-    const pose = (letter && LETTER_POSES[letter]) ? LETTER_POSES[letter] : DEFAULT_POSE;
+    const el = containerRef.current;
+    if (!el) return;
 
-    // Snapshot current state as start
-    startRotations.current = JSON.parse(JSON.stringify(currentRotations.current));
+    let sceneObj = null;
 
-    // Build target state from pose
-    const target = {
-      index:  [[0,0,0],[0,0,0],[0,0,0]],
-      middle: [[0,0,0],[0,0,0],[0,0,0]],
-      ring:   [[0,0,0],[0,0,0],[0,0,0]],
-      pinky:  [[0,0,0],[0,0,0],[0,0,0]],
-      thumb:  [[0,0,0],[0,0,0]],
+    const tryInit = () => {
+      if (sceneObj) return;
+      const W = el.clientWidth;
+      const H = el.clientHeight;
+      if (W > 0 && H > 0) {
+        sceneObj = initScene(el);
+        sceneObjRef.current = sceneObj;
+      }
     };
 
-    ['index', 'middle', 'ring', 'pinky'].forEach(f => {
-      const rot = pose[f] || EXTENDED;
-      for (let j = 0; j < 3; j++) {
-        // Apply decreasing curl for natural finger bend
-        const scale = j === 0 ? 1.0 : j === 1 ? 0.9 : 0.7;
-        target[f][j] = [
-          (rot[0] || 0) * scale,
-          rot[1] || 0,
-          rot[2] || 0,
-        ];
+    tryInit();
+
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (!sceneObj && width > 0 && height > 0) {
+          tryInit();
+        } else if (sceneObj && width > 0 && height > 0) {
+          sceneObj.camera.aspect = width / height;
+          sceneObj.camera.updateProjectionMatrix();
+          sceneObj.renderer.setSize(width, height);
+        }
       }
     });
+    observer.observe(el);
 
-    const tRot = pose.thumb || EXTENDED;
-    for (let j = 0; j < 2; j++) {
-      target.thumb[j] = [tRot[0] || 0, tRot[1] || 0, tRot[2] || 0];
+    return () => {
+      observer.disconnect();
+      clearTimeout(holdTimerRef.current);
+      if (sceneObj) {
+        sceneObj.cancelAnim();
+        sceneObj.controls.dispose();
+        if (el && sceneObj.renderer.domElement.parentNode === el) {
+          el.removeChild(sceneObj.renderer.domElement);
+        }
+        sceneObj.renderer.dispose();
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Pose trigger ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    clearTimeout(holdTimerRef.current);
+
+    const key  = currentLetter?.trim().toLowerCase();
+    const pose = (key && POSES[key]) ? POSES[key] : NEUTRAL;
+
+    startRef.current  = JSON.parse(JSON.stringify(curRef.current));
+    targetRef.current = poseToState(pose);
+    lerpRef.current.progress = 0;
+
+    if (isPlayingRef.current) {
+      holdTimerRef.current = setTimeout(() => {
+        onCompleteRef.current?.();
+      }, LERP_MS + HOLD_MS);
     }
 
-    targetRotations.current = target;
-    lerpDuration.current = isPlaying ? 400 : 600;
-    lerpProgress.current = 0; // Start transition
-  }, [currentLetter, isPlaying]);
+    return () => clearTimeout(holdTimerRef.current);
+  }, [currentLetter]);
 
   return (
     <div

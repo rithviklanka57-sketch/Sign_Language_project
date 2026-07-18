@@ -1,20 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 import Hand3D from './Hand3D';
 
 function App() {
-  const [inputText, setInputText] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [inputText, setInputText]       = useState('');
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState(null);
   const [glossPipeline, setGlossPipeline] = useState([]);
   const [currentPlayIndex, setCurrentPlayIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPlaying, setIsPlaying]       = useState(false);
+  const [hasTranslated, setHasTranslated] = useState(false);
 
-  // Playback control sequencer
+  // Clamp index when pipeline finishes — stop playing but keep display open
   useEffect(() => {
-    if (isPlaying && currentPlayIndex >= glossPipeline.length) {
+    if (isPlaying && currentPlayIndex >= glossPipeline.length && glossPipeline.length > 0) {
       setIsPlaying(false);
-      setCurrentPlayIndex(0);
+      // Keep currentPlayIndex at last item so the 3D hand holds final pose
+      setCurrentPlayIndex(glossPipeline.length - 1);
     }
   }, [isPlaying, currentPlayIndex, glossPipeline]);
 
@@ -24,16 +26,11 @@ function App() {
 
     setLoading(true);
     setError(null);
-    setGlossPipeline([]);
-    setCurrentPlayIndex(0);
-    setIsPlaying(false);
 
     try {
       const response = await fetch('http://localhost:8000/translate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: inputText }),
       });
 
@@ -44,10 +41,9 @@ function App() {
 
       const data = await response.json();
       setGlossPipeline(data.gloss_pipeline);
-      if (data.gloss_pipeline.length > 0) {
-        setIsPlaying(true);
-        setCurrentPlayIndex(0);
-      }
+      setCurrentPlayIndex(0);
+      setIsPlaying(true);
+      setHasTranslated(true);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -59,15 +55,10 @@ function App() {
     setCurrentPlayIndex(prev => prev + 1);
   };
 
-  const togglePlay = () => {
+  const handleReplay = () => {
     if (glossPipeline.length === 0) return;
-    
-    if (currentPlayIndex >= glossPipeline.length) {
-      setCurrentPlayIndex(0);
-      setIsPlaying(true);
-    } else {
-      setIsPlaying(prev => !prev);
-    }
+    setCurrentPlayIndex(0);
+    setIsPlaying(true);
   };
 
   const jumpToTimelineIndex = (index) => {
@@ -75,13 +66,18 @@ function App() {
     setIsPlaying(true);
   };
 
-  const activeItem = glossPipeline[currentPlayIndex];
+  // activeItem is clamped so it never goes out of bounds
+  const safeIndex  = Math.min(currentPlayIndex, glossPipeline.length - 1);
+  const activeItem = glossPipeline[safeIndex] ?? null;
+  const isDone     = !isPlaying && hasTranslated && glossPipeline.length > 0;
 
   return (
     <div className="app-container">
       <header style={{ textAlign: 'center', marginBottom: '40px' }}>
         <h1>Sign Language 3D Translator</h1>
-        <p className="subtitle">Translate English sentences into visual sign-language gestures and letter-by-letter fingerspelling using an interactive 3D hand avatar.</p>
+        <p className="subtitle">
+          Type any text and watch the 3D hand fingerspell it letter-by-letter in ASL.
+        </p>
       </header>
 
       <main className="translator-grid">
@@ -89,19 +85,23 @@ function App() {
         <section className="input-section glass-panel">
           <form onSubmit={handleTranslate} className="input-group">
             <label htmlFor="translate-input" className="input-label">
-              Enter English Sentence
+              Enter Text to Fingerspell
             </label>
             <div className="text-input-wrapper">
               <input
                 id="translate-input"
                 type="text"
-                placeholder="e.g. Hello please thank you OR Where is my family?"
+                placeholder="e.g. Hello or ABC"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 className="text-input"
                 disabled={loading}
               />
-              <button type="submit" className="translate-btn" disabled={loading || !inputText.trim()}>
+              <button
+                type="submit"
+                className="translate-btn"
+                disabled={loading || !inputText.trim()}
+              >
                 {loading ? <div className="spinner" /> : 'Translate'}
               </button>
             </div>
@@ -109,65 +109,73 @@ function App() {
           </form>
         </section>
 
-        {/* Playback Section */}
-        {glossPipeline.length > 0 && (
+        {/* 3D Viewer — always mounted once translated so canvas never tears down */}
+        {hasTranslated && (
           <section className="playback-section glass-panel">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '8px' }}>
               <h2 className="input-label" style={{ margin: 0 }}>
                 3D Sign Language Display
               </h2>
               <span className="subtitle" style={{ fontSize: '0.85rem', margin: 0 }}>
-                🖱️ Left click + Drag to rotate | 📜 Scroll to zoom
+                🖱️ Drag to rotate · 📜 Scroll to zoom
               </span>
             </div>
 
-            <div className="player-wrapper" style={{ cursor: 'grab' }}>
-              {/* 3D WebGL Canvas */}
+            <div className="player-wrapper">
+              {/* Three.js canvas — always rendered */}
               <Hand3D
                 currentLetter={activeItem ? activeItem.word : null}
                 isPlaying={isPlaying}
                 onItemComplete={handleItemComplete}
               />
 
-              {/* Fingerspelling Letter Overlay */}
-              {isPlaying && activeItem && (
-                <div className="fingerspelling-overlay" style={{ background: 'transparent', pointerEvents: 'none' }}>
-                  <span className="fingerspelling-letter animate-letter-pop" style={{ fontSize: '7rem', color: '#38bdf8' }}>
-                    {activeItem.word.toUpperCase()}
-                  </span>
-                  <span className="fingerspelling-label" style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Fingerspelling</span>
-                </div>
-              )}
-
-              {/* Play / Paused Overlay */}
-              {!isPlaying && (
-                <div className="play-control-overlay" onClick={togglePlay}>
-                  <button className="play-icon-btn">
+              {/* "Done — click to replay" overlay shown only when sequence finished */}
+              {isDone && (
+                <div className="play-control-overlay" onClick={handleReplay}>
+                  <button className="play-icon-btn" title="Replay">
                     <svg viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z" />
+                      {/* Replay icon */}
+                      <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
                     </svg>
                   </button>
                 </div>
               )}
+
+              {/* Current letter badge (bottom-right corner, subtle) */}
+              {activeItem && (
+                <div style={{
+                  position: 'absolute', bottom: '14px', right: '16px',
+                  background: 'rgba(15,23,42,0.75)',
+                  border: '1px solid rgba(168,85,247,0.4)',
+                  borderRadius: '8px',
+                  padding: '4px 12px',
+                  pointerEvents: 'none',
+                  zIndex: 20,
+                }}>
+                  <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#c084fc', letterSpacing: '0.08em' }}>
+                    {activeItem.word.toUpperCase()}
+                  </span>
+                </div>
+              )}
             </div>
 
-            {/* Visual Timeline Tracker */}
-            <div className="timeline-container">
-              <h3 className="timeline-title">Gloss Sequence</h3>
-              <div className="timeline-track">
-                {glossPipeline.map((item, idx) => (
-                  <button
-                    key={`${item.word}-${idx}`}
-                    className={`timeline-tag ${item.type === 'letter' ? 'fingerspelling' : ''} ${
-                      idx === currentPlayIndex && isPlaying ? 'active' : ''
-                    }`}
-                    onClick={() => jumpToTimelineIndex(idx)}
-                  >
-                    {item.word}
-                  </button>
-                ))}
+            {/* Timeline */}
+            {glossPipeline.length > 0 && (
+              <div className="timeline-container">
+                <h3 className="timeline-title">Letter Sequence</h3>
+                <div className="timeline-track">
+                  {glossPipeline.map((item, idx) => (
+                    <button
+                      key={`${item.word}-${idx}`}
+                      className={`timeline-tag fingerspelling ${idx === safeIndex ? 'active' : ''}`}
+                      onClick={() => jumpToTimelineIndex(idx)}
+                    >
+                      {item.word.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </section>
         )}
       </main>
