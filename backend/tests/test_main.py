@@ -12,13 +12,15 @@ def test_health_endpoint():
     }
 
 def test_translate_success():
-    response = client.post("/translate", json={"text": "What is your name?"})
+    response = client.post("/translate", json={"text": "hi"})
     assert response.status_code == 200
     data = response.json()
-    assert data["original_text"] == "What is your name?"
-    assert len(data["gloss_pipeline"]) == 3
-    assert data["gloss_pipeline"][0]["word"] == "you"
-    assert data["gloss_pipeline"][0]["type"] == "gesture"
+    assert data["original_text"] == "hi"
+    assert len(data["gloss_pipeline"]) == 2
+    assert data["gloss_pipeline"][0]["word"] == "h"
+    assert data["gloss_pipeline"][0]["type"] == "letter"
+    assert data["gloss_pipeline"][1]["word"] == "i"
+    assert data["gloss_pipeline"][1]["type"] == "letter"
 
 def test_translate_fingerspelling_success():
     response = client.post("/translate", json={"text": "dog"})
@@ -38,12 +40,8 @@ def test_translate_empty_input():
     assert "cannot be empty" in response.json()["detail"]
 
 def test_translate_no_translatable_content():
-    # Only stopwords
-    response = client.post("/translate", json={"text": "is are a the"})
-    assert response.status_code == 400
-    assert "no translatable words or letters" in response.json()["detail"]
-
     # Only non-alphabetic characters
     response = client.post("/translate", json={"text": "123 !@#$"})
     assert response.status_code == 400
-    assert "no translatable words or letters" in response.json()["detail"]
+    assert "no translatable characters" in response.json()["detail"]
+
