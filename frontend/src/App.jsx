@@ -124,43 +124,18 @@ function App() {
             <div className="player-wrapper" style={{ cursor: 'grab' }}>
               {/* 3D WebGL Canvas */}
               <Hand3D
-                currentWord={activeItem ? activeItem.word : null}
+                currentLetter={activeItem ? activeItem.word : null}
                 isPlaying={isPlaying}
                 onItemComplete={handleItemComplete}
               />
 
-              {/* Fingerspelling Overlay */}
-              {isPlaying && activeItem && activeItem.type === 'letter' && (
+              {/* Fingerspelling Letter Overlay */}
+              {isPlaying && activeItem && (
                 <div className="fingerspelling-overlay" style={{ background: 'transparent', pointerEvents: 'none' }}>
                   <span className="fingerspelling-letter animate-letter-pop" style={{ fontSize: '7rem', color: '#38bdf8' }}>
-                    {activeItem.word}
+                    {activeItem.word.toUpperCase()}
                   </span>
                   <span className="fingerspelling-label" style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Fingerspelling</span>
-                </div>
-              )}
-
-              {/* Gesture Word Overlay (shows word name on corner) */}
-              {isPlaying && activeItem && activeItem.type === 'gesture' && (
-                <div style={{
-                  position: 'absolute',
-                  bottom: '20px',
-                  left: '20px',
-                  background: 'rgba(15, 23, 42, 0.75)',
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  pointerEvents: 'none',
-                  zIndex: 20
-                }}>
-                  <span style={{
-                    fontSize: '1.2rem',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    color: '#a855f7'
-                  }}>
-                    Gesture: {activeItem.word}
-                  </span>
                 </div>
               )}
 

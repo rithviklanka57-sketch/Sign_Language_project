@@ -4,570 +4,348 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 // --- POSE CONSTANTS (Rotations in Radians) ---
 const EXTENDED = [0, 0, 0];
-const CURL_90 = [1.4, 1.4, 0.8]; // Bend knuckle 1, knuckle 2, knuckle 3
-const CURL_60 = [0.8, 0.8, 0.4];
+const CURL_90 = [1.4, 0, 0];
+const CURL_60 = [0.8, 0, 0];
+const CURL_45 = [0.5, 0, 0];
 
-// Fingerspelling Pose Library (A-Z)
+// --- A-Z FINGERSPELLING POSE LIBRARY ---
+// Each entry defines the target rotation [x, y, z] for each finger's joints.
+// Only X-rotation (curl) is used for simplicity; Y/Z used for spread/splay.
 const LETTER_POSES = {
-  a: { // Fist: all fingers curled, thumb bent sideways over index
-    index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: CURL_90,
-    thumb: [0.5, 0.4, 0.2]
-  },
-  b: { // Flat hand: all fingers extended, thumb crossed in front of palm
-    index: EXTENDED, middle: EXTENDED, ring: EXTENDED, pinky: EXTENDED,
-    thumb: [0.2, 0.8, 0.8]
-  },
-  c: { // Curved hand shape
-    index: CURL_60, middle: CURL_60, ring: CURL_60, pinky: CURL_60,
-    thumb: [0.4, 0.4, 0.2]
-  },
-  d: { // Index pointing up, others closed
-    index: EXTENDED, middle: CURL_90, ring: CURL_90, pinky: CURL_90,
-    thumb: [0.8, 0.8, 0.2]
-  },
-  e: { // Claw: all fingers bent halfway
-    index: CURL_60, middle: CURL_60, ring: CURL_60, pinky: CURL_60,
-    thumb: [0.8, 0.6, 0.4]
-  },
-  f: { // Index and thumb touching, others extended
-    index: [0.7, 0.7, 0.2], middle: EXTENDED, ring: EXTENDED, pinky: EXTENDED,
-    thumb: [0.6, 0.4, -0.4]
-  },
-  g: { // Index pointing sideways, thumb pointing up, others closed
-    index: [0, 0, 1.4], middle: CURL_90, ring: CURL_90, pinky: CURL_90,
-    thumb: [0, 0, -0.5]
-  },
-  h: { // Index and middle extended, others closed
-    index: EXTENDED, middle: EXTENDED, ring: CURL_90, pinky: CURL_90,
-    thumb: [0.8, 0.8, 0.2]
-  },
-  i: { // Pinky pointing up, others closed
-    index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: EXTENDED,
-    thumb: [0.8, 0.8, 0.2]
-  },
-  j: { // Pinky extended, wriggling (handled via wrist animation)
-    index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: EXTENDED,
-    thumb: [0.8, 0.8, 0.2]
-  },
-  k: { // Index and middle up, thumb between them
-    index: EXTENDED, middle: [0.2, 0.2, 0], ring: CURL_90, pinky: CURL_90,
-    thumb: [0.2, 0, -0.2]
-  },
-  l: { // Index and thumb extended forming L
-    index: EXTENDED, middle: CURL_90, ring: CURL_90, pinky: CURL_90,
-    thumb: [0, 0, -1.2]
-  },
-  m: { // Fist, thumb tucked under middle/ring
-    index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: CURL_90,
-    thumb: [0.9, 0.5, 0.5]
-  },
-  n: { // Fist, thumb tucked under index/middle
-    index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: CURL_90,
-    thumb: [0.7, 0.4, 0.4]
-  },
-  o: { // Rounded hand
-    index: CURL_60, middle: CURL_60, ring: CURL_60, pinky: CURL_60,
-    thumb: [0.8, 0.8, 0]
-  },
-  p: { // K-pose tilted down (handled via wrist tilt)
-    index: EXTENDED, middle: [0.2, 0.2, 0], ring: CURL_90, pinky: CURL_90,
-    thumb: [0.2, 0, -0.2]
-  },
-  q: { // Q-pose pointing down
-    index: [0.7, 0.7, 0.2], middle: CURL_90, ring: CURL_90, pinky: CURL_90,
-    thumb: [0.6, 0.4, -0.4]
-  },
-  r: { // Index and middle crossed
-    index: [0, 0, 0.2], middle: [0, 0, -0.2], ring: CURL_90, pinky: CURL_90,
-    thumb: [0.8, 0.8, 0.2]
-  },
-  s: { // Closed fist, thumb wrapped over
-    index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: CURL_90,
-    thumb: [0.8, 0.8, 0.2]
-  },
-  t: { // Fist with thumb tucked under index
-    index: [1.2, 1.2, 0.6], middle: CURL_90, ring: CURL_90, pinky: CURL_90,
-    thumb: [0.5, 0.3, 0.1]
-  },
-  u: { // Index and middle up, touching
-    index: EXTENDED, middle: EXTENDED, ring: CURL_90, pinky: CURL_90,
-    thumb: [0.8, 0.8, 0.2]
-  },
-  v: { // Peace sign: index and middle spread
-    index: [0, 0, 0.3], middle: [0, 0, -0.3], ring: CURL_90, pinky: CURL_90,
-    thumb: [0.8, 0.8, 0.2]
-  },
-  w: { // Index, middle, ring up
-    index: EXTENDED, middle: EXTENDED, ring: EXTENDED, pinky: CURL_90,
-    thumb: [0.8, 0.8, 0.2]
-  },
-  x: { // Index curved like hook, others closed
-    index: [0.8, 0.8, 0.4], middle: CURL_90, ring: CURL_90, pinky: CURL_90,
-    thumb: [0.8, 0.8, 0.2]
-  },
-  y: { // Thumb and pinky extended, others closed
-    index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: EXTENDED,
-    thumb: [0, 0, -1.2]
-  },
-  z: { // Index pointing up (motion handled via sequencer)
-    index: EXTENDED, middle: CURL_90, ring: CURL_90, pinky: CURL_90,
-    thumb: [0.8, 0.8, 0.2]
-  }
+  a: { index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.5, 0.4, 0] },
+  b: { index: EXTENDED, middle: EXTENDED, ring: EXTENDED, pinky: EXTENDED, thumb: [0.2, 0.6, 0] },
+  c: { index: CURL_60, middle: CURL_60, ring: CURL_60, pinky: CURL_60, thumb: [0.4, 0.3, 0] },
+  d: { index: EXTENDED, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.7, 0.6, 0] },
+  e: { index: CURL_60, middle: CURL_60, ring: CURL_60, pinky: CURL_60, thumb: [0.8, 0.6, 0] },
+  f: { index: CURL_60, middle: EXTENDED, ring: EXTENDED, pinky: EXTENDED, thumb: [0.6, 0.4, 0] },
+  g: { index: [0, 0, 1.4], middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0, 0, -0.5] },
+  h: { index: EXTENDED, middle: EXTENDED, ring: CURL_90, pinky: CURL_90, thumb: [0.8, 0.6, 0] },
+  i: { index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: EXTENDED, thumb: [0.8, 0.6, 0] },
+  j: { index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: EXTENDED, thumb: [0.8, 0.6, 0] },
+  k: { index: EXTENDED, middle: CURL_45, ring: CURL_90, pinky: CURL_90, thumb: [0.2, 0, -0.2] },
+  l: { index: EXTENDED, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0, 0, -1.2] },
+  m: { index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.9, 0.5, 0] },
+  n: { index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.7, 0.4, 0] },
+  o: { index: CURL_60, middle: CURL_60, ring: CURL_60, pinky: CURL_60, thumb: [0.8, 0.8, 0] },
+  p: { index: EXTENDED, middle: CURL_45, ring: CURL_90, pinky: CURL_90, thumb: [0.2, 0, -0.2] },
+  q: { index: CURL_60, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.6, 0.4, 0] },
+  r: { index: [0, 0, 0.2], middle: [0, 0, -0.2], ring: CURL_90, pinky: CURL_90, thumb: [0.8, 0.6, 0] },
+  s: { index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.8, 0.8, 0] },
+  t: { index: [1.2, 0, 0], middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.5, 0.3, 0] },
+  u: { index: EXTENDED, middle: EXTENDED, ring: CURL_90, pinky: CURL_90, thumb: [0.8, 0.6, 0] },
+  v: { index: [0, 0, 0.3], middle: [0, 0, -0.3], ring: CURL_90, pinky: CURL_90, thumb: [0.8, 0.6, 0] },
+  w: { index: EXTENDED, middle: EXTENDED, ring: EXTENDED, pinky: CURL_90, thumb: [0.8, 0.6, 0] },
+  x: { index: CURL_60, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.8, 0.6, 0] },
+  y: { index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: EXTENDED, thumb: [0, 0, -1.2] },
+  z: { index: EXTENDED, middle: CURL_90, ring: CURL_90, pinky: CURL_90, thumb: [0.8, 0.6, 0] },
 };
 
-// Word Gestures (Sequences of Keyframes)
-const GESTURES = {
-  hello: [
-    { pose: 'b', duration: 150 }, // Start flat
-    { wrist: [0, 0, -0.4], duration: 200 }, // Tilt left
-    { wrist: [0, 0, 0.4], duration: 250 }, // Tilt right
-    { wrist: [0, 0, -0.4], duration: 250 }, // Tilt left
-    { wrist: [0, 0, 0], pose: 'b', duration: 200 } // Back to center
-  ],
-  goodbye: [
-    { pose: 'b', duration: 150 },
-    { index: CURL_60, middle: CURL_60, ring: CURL_60, pinky: CURL_60, duration: 250 }, // Wave down
-    { index: EXTENDED, middle: EXTENDED, ring: EXTENDED, pinky: EXTENDED, duration: 250 }, // Wave up
-    { index: CURL_60, middle: CURL_60, ring: CURL_60, pinky: CURL_60, duration: 250 }, // Wave down
-    { index: EXTENDED, middle: EXTENDED, ring: EXTENDED, pinky: EXTENDED, duration: 200 }
-  ],
-  please: [
-    { pose: 'b', wrist: [0.2, 0, 0], duration: 200 },
-    { wrist: [0.2, 0.4, 0.2], duration: 300 }, // Circular chest rub rub 1
-    { wrist: [0.2, -0.4, -0.2], duration: 300 }, // rub 2
-    { wrist: [0, 0, 0], duration: 200 }
-  ],
-  "thank you": [
-    { pose: 'b', wrist: [-0.4, 0.3, 0], duration: 200 }, // Hand at lips
-    { wrist: [0.5, -0.2, 0], duration: 400 }, // Gesture forward/down
-    { wrist: [0, 0, 0], duration: 200 }
-  ],
-  yes: [
-    { pose: 's', duration: 200 }, // Close fist
-    { wrist: [0.6, 0, 0], duration: 200 }, // Nod down
-    { wrist: [-0.2, 0, 0], duration: 200 }, // Nod up
-    { wrist: [0.6, 0, 0], duration: 200 },
-    { wrist: [0, 0, 0], pose: 'b', duration: 200 }
-  ],
-  no: [
-    { pose: 'b', duration: 150 },
-    { index: CURL_90, middle: CURL_90, thumb: [0.8, 0.5, 0.2], duration: 200 }, // Snap shut
-    { pose: 'b', duration: 150 },
-    { index: CURL_90, middle: CURL_90, thumb: [0.8, 0.5, 0.2], duration: 200 }
-  ],
-  happy: [
-    { pose: 'b', duration: 200 },
-    { wrist: [0.2, 0, 0], duration: 200 }, // Tilt forward
-    { wrist: [-0.1, 0, 0], duration: 200 }, // Tap
-    { wrist: [0.2, 0, 0], duration: 200 },
-    { wrist: [0, 0, 0], duration: 200 }
-  ],
-  sad: [
-    { pose: 'c', wrist: [-0.3, 0, 0], duration: 300 }, // Curved hand near face
-    { wrist: [0.4, 0, 0], index: CURL_90, middle: CURL_90, ring: CURL_90, pinky: CURL_90, duration: 500 }, // Slide down and curl
-    { wrist: [0, 0, 0], pose: 'b', duration: 300 }
-  ],
-  deaf: [
-    { pose: 'd', wrist: [-0.3, -0.2, 0], duration: 250 }, // Pointing index
-    { wrist: [0.2, 0.3, 0], duration: 300 }, // Move pointing hand
-    { wrist: [0, 0, 0], pose: 'b', duration: 250 }
-  ],
-  friend: [
-    { pose: 'x', wrist: [0, 0.3, -0.2], duration: 300 }, // Hooks clasping
-    { wrist: [0, -0.3, 0.2], duration: 300 },
-    { wrist: [0, 0, 0], pose: 'b', duration: 200 }
-  ],
-  family: [
-    { pose: 'c', duration: 200 },
-    { wrist: [0, 0.6, 0], duration: 400 }, // Circular sweep
-    { wrist: [0, -0.6, 0], duration: 400 },
-    { wrist: [0, 0, 0], pose: 'b', duration: 200 }
-  ]
-};
-
-// Default flat pose structure
+// Default neutral hand pose
 const DEFAULT_POSE = {
   index: EXTENDED, middle: EXTENDED, ring: EXTENDED, pinky: EXTENDED,
   thumb: EXTENDED,
-  wrist: [0, 0, 0]
 };
 
-export default function Hand3D({ currentWord, isPlaying, onItemComplete }) {
+export default function Hand3D({ currentLetter, isPlaying, onItemComplete }) {
   const containerRef = useRef(null);
-  const activeTimeline = useRef([]);
-  const timelineIndex = useRef(0);
-  const currentLerpTime = useRef(0);
-  const totalLerpTime = useRef(500); // Duration in ms
+  const lerpProgress = useRef(1); // Start at 1 = "already at target"
+  const lerpDuration = useRef(500);
 
-  // References to Three.js objects
-  const sceneRef = useRef(null);
-  const handRef = useRef(null);
-  const jointsRef = useRef({}); // Stores references to bone meshes
-  const currentRotations = useRef({}); // Tracks actual bone rotations
-  const startRotations = useRef({}); // Starts transition rotations
-  const targetRotations = useRef({}); // Targets transition rotations
+  const jointsRef = useRef({});
+  const startRotations = useRef({});
+  const targetRotations = useRef({});
+  const currentRotations = useRef({});
+  const onItemCompleteRef = useRef(onItemComplete);
 
   useEffect(() => {
-    // --- 1. SETUP THREE.JS SCENE ---
+    onItemCompleteRef.current = onItemComplete;
+  }, [onItemComplete]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
     const width = containerRef.current.clientWidth;
     const height = containerRef.current.clientHeight;
 
+    // --- SCENE SETUP ---
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0f172a); // Deep blue-slate
-    sceneRef.current = scene;
+    scene.background = new THREE.Color(0x0f172a);
+    // Atmospheric fog
+    scene.fog = new THREE.FogExp2(0x0f172a, 0.08);
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(0, 0.5, 9);
+    camera.position.set(0, 1, 9);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     containerRef.current.appendChild(renderer.domElement);
 
-    // Lightings
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    scene.add(ambientLight);
+    // --- LIGHTING ---
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+    const key = new THREE.DirectionalLight(0xffffff, 0.9);
+    key.position.set(5, 10, 7);
+    key.castShadow = true;
+    scene.add(key);
+    // Neon fill light
+    const fill = new THREE.DirectionalLight(0xa855f7, 0.6);
+    fill.position.set(-5, -5, -3);
+    scene.add(fill);
+    const back = new THREE.DirectionalLight(0x38bdf8, 0.3);
+    back.position.set(0, 5, -8);
+    scene.add(back);
 
-    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight1.position.set(5, 10, 7);
-    scene.add(dirLight1);
+    // Subtle grid ground
+    const grid = new THREE.GridHelper(20, 30, 0x1e293b, 0x1e293b);
+    grid.position.y = -4;
+    scene.add(grid);
 
-    const dirLight2 = new THREE.DirectionalLight(0xa855f7, 0.4); // Neon glow fill light
-    dirLight2.position.set(-5, -5, -2);
-    scene.add(dirLight2);
-
-    // Orbit Controls
+    // --- ORBIT CONTROLS ---
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.minDistance = 3;
-    controls.maxDistance = 15;
+    controls.minDistance = 4;
+    controls.maxDistance = 16;
+    controls.target.set(0, 0.5, 0);
 
-    // --- 2. BUILD PROCEDURAL HAND RIG ---
-    const handGroup = new THREE.Group();
-    handRef.current = handGroup;
-    scene.add(handGroup);
-
-    // Palm base
-    const palmGeo = new THREE.BoxGeometry(2.0, 2.2, 0.4);
-    // Cyber metallic material for bones/palm
-    const cyberMat = new THREE.MeshStandardMaterial({
+    // --- MATERIALS ---
+    const palmMat = new THREE.MeshStandardMaterial({
+      color: 0x334155,
+      metalness: 0.7,
+      roughness: 0.3,
+    });
+    const boneMat = new THREE.MeshStandardMaterial({
       color: 0x475569,
       metalness: 0.8,
       roughness: 0.2,
-      envMapIntensity: 1.0
     });
-    const palmMesh = new THREE.Mesh(palmGeo, cyberMat);
-    palmMesh.position.set(0, -0.6, 0);
-    handGroup.add(palmMesh);
-
-    // Neon joint materials
     const jointMat = new THREE.MeshStandardMaterial({
       color: 0xc084fc,
-      emissive: 0xa855f7,
+      emissive: 0x9333ea,
+      emissiveIntensity: 1.0,
+      roughness: 0.3,
+    });
+    const fingertipMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x0ea5e9,
       emissiveIntensity: 0.8,
-      roughness: 0.4
+      roughness: 0.3,
     });
 
-    // Helper to add finger joint hierarchy
-    const buildFingerRig = (name, xOffset, yStart, length, thickness) => {
+    // --- BUILD HAND ---
+    const handGroup = new THREE.Group();
+    scene.add(handGroup);
+
+    // Palm
+    const palmGeo = new THREE.BoxGeometry(2.1, 2.4, 0.45);
+    const palm = new THREE.Mesh(palmGeo, palmMat);
+    palm.position.set(0, -0.6, 0);
+    palm.castShadow = true;
+    handGroup.add(palm);
+
+    // Wrist cylinder
+    const wristGeo = new THREE.CylinderGeometry(0.28, 0.32, 0.6, 16);
+    const wrist = new THREE.Mesh(wristGeo, boneMat);
+    wrist.position.set(0, -1.9, 0);
+    handGroup.add(wrist);
+
+    // Helper: build a finger with 3 joints and 3 bone segments
+    const buildFinger = (name, xOffset, yStart, segLen, thickness) => {
       const joints = [];
-      const segLength = length / 3;
-      
-      let currentParent = handGroup;
-      
+      let parent = handGroup;
       for (let j = 0; j < 3; j++) {
-        const jointGeo = new THREE.SphereGeometry(thickness * 1.3, 12, 12);
-        const joint = new THREE.Mesh(jointGeo, jointMat);
-        
-        // Position first joint relative to hand group, subsequent relative to previous joint
-        if (j === 0) {
-          joint.position.set(xOffset, yStart, 0.1);
-        } else {
-          joint.position.set(0, segLength, 0);
-        }
-        
-        currentParent.add(joint);
-        joints.push(joint);
+        // Joint sphere
+        const mat = j === 2 ? fingertipMat : jointMat;
+        const jGeo = new THREE.SphereGeometry(thickness * 1.25, 12, 12);
+        const jMesh = new THREE.Mesh(jGeo, mat);
+        jMesh.position.set(j === 0 ? xOffset : 0, j === 0 ? yStart : segLen, 0);
+        jMesh.castShadow = true;
+        parent.add(jMesh);
 
         // Bone segment
-        const boneGeo = new THREE.CylinderGeometry(thickness * 0.8, thickness, segLength, 12);
-        const bone = new THREE.Mesh(boneGeo, cyberMat);
-        bone.position.set(0, segLength / 2, 0);
-        joint.add(bone);
-        
-        currentParent = joint;
+        const bGeo = new THREE.CylinderGeometry(thickness * 0.7, thickness, segLen, 12);
+        const bMesh = new THREE.Mesh(bGeo, boneMat);
+        bMesh.position.set(0, segLen / 2, 0);
+        bMesh.castShadow = true;
+        jMesh.add(bMesh);
+
+        joints.push(jMesh);
+        parent = jMesh;
       }
-      
       jointsRef.current[name] = joints;
     };
 
-    // Rig all fingers
-    // Parameters: name, xOffset, yStart, totalLength, thickness
-    buildFingerRig('pinky', -0.75, 0.5, 1.1, 0.11);
-    buildFingerRig('ring', -0.28, 0.58, 1.4, 0.125);
-    buildFingerRig('middle', 0.2, 0.62, 1.6, 0.125);
-    buildFingerRig('index', 0.68, 0.58, 1.4, 0.125);
+    buildFinger('pinky',  -0.78, 0.45, 0.38, 0.10);
+    buildFinger('ring',   -0.27, 0.56, 0.46, 0.12);
+    buildFinger('middle',  0.22, 0.60, 0.52, 0.12);
+    buildFinger('index',   0.70, 0.56, 0.46, 0.12);
 
-    // Rig Thumb (rotated outwards, 2 joints + base)
+    // Thumb (2 joints, angled)
     const thumbJoints = [];
-    const thumbThickness = 0.15;
-    const thumbSeg = 0.45;
+    const tThick = 0.14;
+    const tSeg = 0.46;
+    const tBase = new THREE.Mesh(new THREE.SphereGeometry(tThick * 1.3, 12, 12), jointMat);
+    tBase.position.set(0.95, -0.22, 0.15);
+    tBase.rotation.z = -0.55;
+    tBase.castShadow = true;
+    handGroup.add(tBase);
+    const tb1 = new THREE.Mesh(new THREE.CylinderGeometry(tThick * 0.75, tThick, tSeg, 12), boneMat);
+    tb1.position.set(0, tSeg / 2, 0);
+    tBase.add(tb1);
+    thumbJoints.push(tBase);
 
-    // Thumb Base Joint (carpal-metacarpal)
-    const tbJoint = new THREE.Mesh(new THREE.SphereGeometry(thumbThickness * 1.3, 12, 12), jointMat);
-    tbJoint.position.set(0.9, -0.2, 0.15);
-    tbJoint.rotation.z = -0.6; // Angled outwards
-    handGroup.add(tbJoint);
-    thumbJoints.push(tbJoint);
-
-    const tbBone = new THREE.Mesh(new THREE.CylinderGeometry(thumbThickness * 0.8, thumbThickness, thumbSeg, 12), cyberMat);
-    tbBone.position.set(0, thumbSeg / 2, 0);
-    tbJoint.add(tbBone);
-
-    // Thumb Interphalangeal Joint
-    const tipJoint = new THREE.Mesh(new THREE.SphereGeometry(thumbThickness * 1.1, 12, 12), jointMat);
-    tipJoint.position.set(0, thumbSeg, 0);
-    tbJoint.add(tipJoint);
-    thumbJoints.push(tipJoint);
-
-    const tipBone = new THREE.Mesh(new THREE.CylinderGeometry(thumbThickness * 0.7, thumbThickness * 0.9, thumbSeg, 12), cyberMat);
-    tipBone.position.set(0, thumbSeg / 2, 0);
-    tipJoint.add(tipBone);
+    const tTip = new THREE.Mesh(new THREE.SphereGeometry(tThick * 1.1, 12, 12), fingertipMat);
+    tTip.position.set(0, tSeg, 0);
+    tBase.add(tTip);
+    const tb2 = new THREE.Mesh(new THREE.CylinderGeometry(tThick * 0.65, tThick * 0.9, tSeg, 12), boneMat);
+    tb2.position.set(0, tSeg / 2, 0);
+    tTip.add(tb2);
+    thumbJoints.push(tTip);
 
     jointsRef.current['thumb'] = thumbJoints;
 
-    // --- 3. INIT ROTATION ARRAYS ---
-    const initializeRotations = () => {
-      const state = {};
-      const addBones = (name, count) => {
-        state[name] = [];
-        for (let i = 0; i < count; i++) {
-          state[name].push([0, 0, 0]);
-        }
-      };
-      addBones('pinky', 3);
-      addBones('ring', 3);
-      addBones('middle', 3);
-      addBones('index', 3);
-      addBones('thumb', 2);
-      state['wrist'] = [0, 0, 0];
-      
-      currentRotations.current = JSON.parse(JSON.stringify(state));
-      startRotations.current = JSON.parse(JSON.stringify(state));
-      targetRotations.current = JSON.parse(JSON.stringify(state));
-    };
-    initializeRotations();
+    // --- INIT ROTATIONS ---
+    const makeRotState = () => ({
+      index:  [[0,0,0],[0,0,0],[0,0,0]],
+      middle: [[0,0,0],[0,0,0],[0,0,0]],
+      ring:   [[0,0,0],[0,0,0],[0,0,0]],
+      pinky:  [[0,0,0],[0,0,0],[0,0,0]],
+      thumb:  [[0,0,0],[0,0,0]],
+    });
+    currentRotations.current = makeRotState();
+    startRotations.current   = makeRotState();
+    targetRotations.current  = makeRotState();
 
-    // Set initial layout rotation (slightly angled toward the viewer)
-    handGroup.rotation.y = -0.4; 
-    handGroup.rotation.x = 0.2;
+    handGroup.rotation.y = -0.35;
+    handGroup.rotation.x =  0.15;
 
-    // --- 4. RENDER LOOP ---
+    // --- ANIMATION LOOP ---
+    let raf;
     let lastTime = performance.now();
-    let animationFrameId;
 
-    const animate = (time) => {
-      animationFrameId = requestAnimationFrame(animate);
+    const animate = (now) => {
+      raf = requestAnimationFrame(animate);
+      const delta = now - lastTime;
+      lastTime = now;
 
-      const delta = time - lastTime;
-      lastTime = time;
+      if (lerpProgress.current < 1) {
+        lerpProgress.current = Math.min(lerpProgress.current + delta / lerpDuration.current, 1);
+        // Ease-in-out curve
+        const t = lerpProgress.current < 0.5
+          ? 2 * lerpProgress.current * lerpProgress.current
+          : 1 - Math.pow(-2 * lerpProgress.current + 2, 2) / 2;
 
-      // Update joint angles via LERP if animation is active
-      if (currentLerpTime.current < totalLerpTime.current) {
-        currentLerpTime.current += delta;
-        const progress = Math.min(currentLerpTime.current / totalLerpTime.current, 1);
-        
-        // Apply smooth ease-in-out interpolation curve
-        const t = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-
-        // Interpolate wrist
-        const startWrist = startRotations.current.wrist;
-        const targetWrist = targetRotations.current.wrist;
-        const currentWrist = currentRotations.current.wrist;
-        for (let i = 0; i < 3; i++) {
-          currentWrist[i] = THREE.MathUtils.lerp(startWrist[i], targetWrist[i], t);
-        }
-        handGroup.position.y = currentWrist[0] * 0.5; // Simulate arm vertical movement on wrist-X tilt
-
-        // Interpolate fingers
-        ['pinky', 'ring', 'middle', 'index', 'thumb'].forEach(finger => {
-          const jointCount = finger === 'thumb' ? 2 : 3;
-          for (let j = 0; j < jointCount; j++) {
-            for (let axis = 0; axis < 3; axis++) {
-              currentRotations.current[finger][j][axis] = THREE.MathUtils.lerp(
-                startRotations.current[finger][j][axis],
-                targetRotations.current[finger][j][axis],
+        const fingers = ['index', 'middle', 'ring', 'pinky'];
+        fingers.forEach(f => {
+          for (let j = 0; j < 3; j++) {
+            for (let ax = 0; ax < 3; ax++) {
+              currentRotations.current[f][j][ax] = THREE.MathUtils.lerp(
+                startRotations.current[f][j][ax],
+                targetRotations.current[f][j][ax],
                 t
               );
             }
-          }
-        });
-
-        // Apply updated angles to 3D skeletons
-        // Apply wrist rotation
-        handGroup.rotation.x = 0.2 + currentRotations.current.wrist[0];
-        handGroup.rotation.y = -0.4 + currentRotations.current.wrist[1];
-        handGroup.rotation.z = currentRotations.current.wrist[2];
-
-        // Apply finger rotations
-        ['pinky', 'ring', 'middle', 'index', 'thumb'].forEach(finger => {
-          const jointCount = finger === 'thumb' ? 2 : 3;
-          const meshes = jointsRef.current[finger];
-          for (let j = 0; j < jointCount; j++) {
-            if (meshes && meshes[j]) {
-              meshes[j].rotation.x = currentRotations.current[finger][j][0];
-              meshes[j].rotation.y = currentRotations.current[finger][j][1];
-              meshes[j].rotation.z = currentRotations.current[finger][j][2];
+            const mesh = jointsRef.current[f]?.[j];
+            if (mesh) {
+              mesh.rotation.x = currentRotations.current[f][j][0];
+              mesh.rotation.y = currentRotations.current[f][j][1];
+              mesh.rotation.z = currentRotations.current[f][j][2];
             }
           }
         });
 
-        // Check if transition is finished
-        if (progress >= 1) {
-          onTransitionEnd();
+        // Thumb (2 joints)
+        for (let j = 0; j < 2; j++) {
+          for (let ax = 0; ax < 3; ax++) {
+            currentRotations.current.thumb[j][ax] = THREE.MathUtils.lerp(
+              startRotations.current.thumb[j][ax],
+              targetRotations.current.thumb[j][ax],
+              t
+            );
+          }
+          const mesh = jointsRef.current.thumb?.[j];
+          if (mesh) {
+            mesh.rotation.x = currentRotations.current.thumb[j][0];
+            mesh.rotation.y = currentRotations.current.thumb[j][1];
+            mesh.rotation.z = currentRotations.current.thumb[j][2];
+          }
+        }
+
+        if (lerpProgress.current >= 1) {
+          onItemCompleteRef.current?.();
         }
       }
 
       controls.update();
       renderer.render(scene, camera);
     };
-
-    // Handle keyframe transition ends
-    const onTransitionEnd = () => {
-      // If we are in the middle of a gesture sequence, advance to next keyframe
-      if (activeTimeline.current.length > 0) {
-        timelineIndex.current += 1;
-        if (timelineIndex.current < activeTimeline.current.length) {
-          playKeyframe(activeTimeline.current[timelineIndex.current]);
-        } else {
-          // Gesture is fully complete
-          activeTimeline.current = [];
-          onItemComplete();
-        }
-      } else {
-        // Single pose (like a letter) is complete
-        onItemComplete();
-      }
-    };
-
     animate(performance.now());
 
-    // --- 5. RESIZE HANDLER ---
-    const handleResize = () => {
-      if (!containerRef.current || !renderer || !camera) return;
+    const onResize = () => {
+      if (!containerRef.current) return;
       const w = containerRef.current.clientWidth;
       const h = containerRef.current.clientHeight;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', onResize);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
-      cancelAnimationFrame(animationFrameId);
-      if (renderer.domElement && containerRef.current) {
+      window.removeEventListener('resize', onResize);
+      cancelAnimationFrame(raf);
+      if (containerRef.current && renderer.domElement.parentNode === containerRef.current) {
         containerRef.current.removeChild(renderer.domElement);
       }
       renderer.dispose();
     };
   }, []);
 
-  // --- KEYFRAME PLAYBACK SEQUENCER ---
-  const playKeyframe = (keyframe) => {
-    // 1. Snapshot current rotations as start state
+  // --- POSE TRIGGER ---
+  useEffect(() => {
+    const letter = currentLetter?.trim().toLowerCase();
+    const pose = (letter && LETTER_POSES[letter]) ? LETTER_POSES[letter] : DEFAULT_POSE;
+
+    // Snapshot current state as start
     startRotations.current = JSON.parse(JSON.stringify(currentRotations.current));
 
-    // 2. Parse target rotations
-    // If it points to a letter key in LETTER_POSES
-    let poseData = null;
-    if (typeof keyframe.pose === 'string' && LETTER_POSES[keyframe.pose]) {
-      poseData = LETTER_POSES[keyframe.pose];
-    } else if (typeof keyframe.pose === 'object') {
-      poseData = keyframe.pose;
-    }
+    // Build target state from pose
+    const target = {
+      index:  [[0,0,0],[0,0,0],[0,0,0]],
+      middle: [[0,0,0],[0,0,0],[0,0,0]],
+      ring:   [[0,0,0],[0,0,0],[0,0,0]],
+      pinky:  [[0,0,0],[0,0,0],[0,0,0]],
+      thumb:  [[0,0,0],[0,0,0]],
+    };
 
-    // Default target is a flat hand
-    const target = JSON.parse(JSON.stringify(DEFAULT_POSE));
-
-    if (poseData) {
-      Object.keys(poseData).forEach(part => {
-        if (part === 'wrist') {
-          target.wrist = poseData.wrist;
-        } else if (target[part]) {
-          const jointCount = part === 'thumb' ? 2 : 3;
-          for (let j = 0; j < jointCount; j++) {
-            // Apply X rotation (and Y/Z if defined, otherwise 0)
-            target[part][j] = [
-              poseData[part][0] || 0,
-              poseData[part][1] || 0,
-              poseData[part][2] || 0
-            ];
-            
-            // Allow mapping finger array definitions [j0_x, j1_x, j2_x]
-            if (Array.isArray(poseData[part]) && Array.isArray(poseData[part][0]) === false) {
-              target[part][j] = [poseData[part][j] || 0, 0, 0];
-            }
-          }
-        }
-      });
-    }
-
-    // Overlay explicit wrist or finger adjustments defined inside the keyframe itself
-    if (keyframe.wrist) target.wrist = keyframe.wrist;
-    ['pinky', 'ring', 'middle', 'index', 'thumb'].forEach(finger => {
-      if (keyframe[finger]) {
-        const jointCount = finger === 'thumb' ? 2 : 3;
-        for (let j = 0; j < jointCount; j++) {
-          target[finger][j] = [keyframe[finger][j] || 0, 0, 0];
-        }
+    ['index', 'middle', 'ring', 'pinky'].forEach(f => {
+      const rot = pose[f] || EXTENDED;
+      for (let j = 0; j < 3; j++) {
+        // Apply decreasing curl for natural finger bend
+        const scale = j === 0 ? 1.0 : j === 1 ? 0.9 : 0.7;
+        target[f][j] = [
+          (rot[0] || 0) * scale,
+          rot[1] || 0,
+          rot[2] || 0,
+        ];
       }
     });
 
+    const tRot = pose.thumb || EXTENDED;
+    for (let j = 0; j < 2; j++) {
+      target.thumb[j] = [tRot[0] || 0, tRot[1] || 0, tRot[2] || 0];
+    }
+
     targetRotations.current = target;
-    totalLerpTime.current = keyframe.duration || 500;
-    currentLerpTime.current = 0; // Starts lerping
-  };
-
-  // Triggers whenever props change
-  useEffect(() => {
-    if (!isPlaying) {
-      // Put hand back in default flat pose
-      playKeyframe({ pose: 'b', duration: 400 });
-      return;
-    }
-
-    if (!currentWord) return;
-
-    const wordNorm = currentWord.trim().toLowerCase();
-
-    // Check if it matches a word gesture sequence
-    if (GESTURES[wordNorm]) {
-      activeTimeline.current = GESTURES[wordNorm];
-      timelineIndex.current = 0;
-      playKeyframe(activeTimeline.current[0]);
-    } else if (LETTER_POSES[wordNorm]) {
-      // Matches a single letter pose
-      activeTimeline.current = [];
-      playKeyframe({ pose: wordNorm, duration: 600 });
-    } else {
-      // Default fallback (e.g. flat b)
-      activeTimeline.current = [];
-      playKeyframe({ pose: 'b', duration: 500 });
-    }
-  }, [currentWord, isPlaying]);
+    lerpDuration.current = isPlaying ? 400 : 600;
+    lerpProgress.current = 0; // Start transition
+  }, [currentLetter, isPlaying]);
 
   return (
     <div
       ref={containerRef}
-      style={{
-        width: '100%',
-        height: '100%',
-        position: 'absolute',
-        top: 0,
-        left: 0
-      }}
+      style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
     />
   );
 }
