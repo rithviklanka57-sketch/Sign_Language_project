@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
+import Hand3D from './Hand3D';
 
 function App() {
   const [inputText, setInputText] = useState('');
@@ -9,37 +10,11 @@ function App() {
   const [currentPlayIndex, setCurrentPlayIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const videoRef = useRef(null);
-
-  // Playback control effect
+  // Playback control sequencer
   useEffect(() => {
-    if (!isPlaying || currentPlayIndex >= glossPipeline.length) {
-      if (currentPlayIndex >= glossPipeline.length && glossPipeline.length > 0) {
-        setIsPlaying(false);
-      }
-      return;
-    }
-
-    const currentItem = glossPipeline[currentPlayIndex];
-    if (currentItem.type === 'fingerspelling') {
-      // Visual fingerspelling overlay: hold the letter on screen for 800ms, then advance
-      const timer = setTimeout(() => {
-        setCurrentPlayIndex(prev => prev + 1);
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [isPlaying, currentPlayIndex, glossPipeline]);
-
-  // When active item is a video, trigger play if video element is loaded and source is set
-  useEffect(() => {
-    if (isPlaying && currentPlayIndex < glossPipeline.length) {
-      const currentItem = glossPipeline[currentPlayIndex];
-      if (currentItem.type === 'video' && videoRef.current) {
-        videoRef.current.load();
-        videoRef.current.play().catch(err => {
-          console.log("Auto-play blocked or error: ", err);
-        });
-      }
+    if (isPlaying && currentPlayIndex >= glossPipeline.length) {
+      setIsPlaying(false);
+      setCurrentPlayIndex(0);
     }
   }, [isPlaying, currentPlayIndex, glossPipeline]);
 
@@ -80,7 +55,7 @@ function App() {
     }
   };
 
-  const handleVideoEnded = () => {
+  const handleItemComplete = () => {
     setCurrentPlayIndex(prev => prev + 1);
   };
 
@@ -92,11 +67,6 @@ function App() {
       setIsPlaying(true);
     } else {
       setIsPlaying(prev => !prev);
-      if (!isPlaying && videoRef.current) {
-        videoRef.current.play().catch(() => {});
-      } else if (isPlaying && videoRef.current) {
-        videoRef.current.pause();
-      }
     }
   };
 
@@ -110,8 +80,8 @@ function App() {
   return (
     <div className="app-container">
       <header style={{ textAlign: 'center', marginBottom: '40px' }}>
-        <h1>Sign Language Translator</h1>
-        <p className="subtitle">Translate English sentences into visual sign-language gloss and fingerspelling sequences.</p>
+        <h1>Sign Language 3D Translator</h1>
+        <p className="subtitle">Translate English sentences into visual sign-language gestures and letter-by-letter fingerspelling using an interactive 3D hand avatar.</p>
       </header>
 
       <main className="translator-grid">
@@ -125,7 +95,7 @@ function App() {
               <input
                 id="translate-input"
                 type="text"
-                placeholder="e.g. What is your name? OR Hello my friend dog"
+                placeholder="e.g. Hello please thank you OR Where is my family?"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 className="text-input"
@@ -142,34 +112,59 @@ function App() {
         {/* Playback Section */}
         {glossPipeline.length > 0 && (
           <section className="playback-section glass-panel">
-            <h2 className="input-label" style={{ marginBottom: '15px' }}>
-              Sign Language Playback
-            </h2>
-            <div className="player-wrapper">
-              {/* If fingerspelling is active, show the overlay */}
-              {isPlaying && activeItem && activeItem.type === 'fingerspelling' && (
-                <div className="fingerspelling-overlay">
-                  <span className="fingerspelling-letter animate-letter-pop">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h2 className="input-label" style={{ margin: 0 }}>
+                3D Sign Language Display
+              </h2>
+              <span className="subtitle" style={{ fontSize: '0.85rem', margin: 0 }}>
+                🖱️ Left click + Drag to rotate | 📜 Scroll to zoom
+              </span>
+            </div>
+
+            <div className="player-wrapper" style={{ cursor: 'grab' }}>
+              {/* 3D WebGL Canvas */}
+              <Hand3D
+                currentWord={activeItem ? activeItem.word : null}
+                isPlaying={isPlaying}
+                onItemComplete={handleItemComplete}
+              />
+
+              {/* Fingerspelling Overlay */}
+              {isPlaying && activeItem && activeItem.type === 'letter' && (
+                <div className="fingerspelling-overlay" style={{ background: 'transparent', pointerEvents: 'none' }}>
+                  <span className="fingerspelling-letter animate-letter-pop" style={{ fontSize: '7rem', color: '#38bdf8' }}>
                     {activeItem.word}
                   </span>
-                  <span className="fingerspelling-label">Fingerspelling</span>
+                  <span className="fingerspelling-label" style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Fingerspelling</span>
                 </div>
               )}
 
-              {/* Video Player */}
-              <video
-                ref={videoRef}
-                src={activeItem && activeItem.type === 'video' ? activeItem.url : undefined}
-                className="video-element"
-                onEnded={handleVideoEnded}
-                onClick={togglePlay}
-                controls={activeItem && activeItem.type === 'video'}
-                style={{
-                  display: activeItem && activeItem.type === 'video' ? 'block' : 'none'
-                }}
-              />
+              {/* Gesture Word Overlay (shows word name on corner) */}
+              {isPlaying && activeItem && activeItem.type === 'gesture' && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: '20px',
+                  left: '20px',
+                  background: 'rgba(15, 23, 42, 0.75)',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  pointerEvents: 'none',
+                  zIndex: 20
+                }}>
+                  <span style={{
+                    fontSize: '1.2rem',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    color: '#a855f7'
+                  }}>
+                    Gesture: {activeItem.word}
+                  </span>
+                </div>
+              )}
 
-              {/* Paused/Inactive Play Overlay */}
+              {/* Play / Paused Overlay */}
               {!isPlaying && (
                 <div className="play-control-overlay" onClick={togglePlay}>
                   <button className="play-icon-btn">
@@ -183,12 +178,12 @@ function App() {
 
             {/* Visual Timeline Tracker */}
             <div className="timeline-container">
-              <h3 className="timeline-title">Gloss Timeline Tracker</h3>
+              <h3 className="timeline-title">Gloss Sequence</h3>
               <div className="timeline-track">
                 {glossPipeline.map((item, idx) => (
                   <button
                     key={`${item.word}-${idx}`}
-                    className={`timeline-tag ${item.type} ${
+                    className={`timeline-tag ${item.type === 'letter' ? 'fingerspelling' : ''} ${
                       idx === currentPlayIndex && isPlaying ? 'active' : ''
                     }`}
                     onClick={() => jumpToTimelineIndex(idx)}

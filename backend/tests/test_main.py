@@ -18,22 +18,15 @@ def test_translate_success():
     assert data["original_text"] == "What is your name?"
     assert len(data["gloss_pipeline"]) == 3
     assert data["gloss_pipeline"][0]["word"] == "you"
-    assert data["gloss_pipeline"][0]["type"] == "video"
-    assert data["gloss_pipeline"][0]["url"] == "http://testserver/videos/you.mp4"
-    assert len(data["video_urls"]) == 3
-    assert data["video_urls"][0] == "http://testserver/videos/you.mp4"
+    assert data["gloss_pipeline"][0]["type"] == "gesture"
 
 def test_translate_fingerspelling_success():
-    # 'dog' is not in dictionary. It should fall back to fingerspelling.
-    # Letters 'd', 'o', 'g' do not exist in the /videos directory, so they should return url: null
     response = client.post("/translate", json={"text": "dog"})
     assert response.status_code == 200
     data = response.json()
     assert len(data["gloss_pipeline"]) == 3
     assert data["gloss_pipeline"][0]["word"] == "d"
-    assert data["gloss_pipeline"][0]["type"] == "fingerspelling"
-    assert data["gloss_pipeline"][0]["url"] is None
-    assert len(data["video_urls"]) == 0
+    assert data["gloss_pipeline"][0]["type"] == "letter"
 
 def test_translate_empty_input():
     response = client.post("/translate", json={"text": ""})
