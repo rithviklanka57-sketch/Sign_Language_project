@@ -1,0 +1,22 @@
+{
+  "hello": "hello.mp4",
+  "goodbye": "goodbye.mp4",
+  "please": "please.mp4",
+  "thank you": "thank_you.mp4",
+  "yes": "yes.mp4",
+  "no": "no.mp4",
+  "name": "name.mp4",
+  "my": "my.mp4",
+  "you": "you.mp4",
+  "what": "what.mp4",
+  "who": "who.mp4",
+  "where": "where.mp4",
+  "when": "when.mp4",
+  "why": "why.mp4",
+  "how": "how.mp4",
+  "happy": "happy.mp4",
+  "sad": "sad.mp4",
+  "deaf": "deaf.mp4",
+  "friend": "friend.mp4",
+  "family": "family.mp4"
+}
